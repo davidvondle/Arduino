@@ -1014,6 +1014,19 @@ public class Base {
       }
     }
   }
+  // DV - added this to get current board, maybe there's a better way?
+  public String getCurrentBoard() {
+    //System.out.println("rebuilding boards menu");
+    for (Target target : targetsTable.values()) {
+      for (String board : target.getBoards().keySet()) {
+        if (target.getName().equals(Preferences.get("target")) &&
+            board.equals(Preferences.get("board"))) {
+          return target.getBoards().get(board).get("name");
+        }
+      }
+    }
+    return "";
+  }
   
   
   public void rebuildBurnBootloaderMenu(JMenu menu) {

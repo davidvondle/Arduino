@@ -37,12 +37,12 @@ public class EditorToolbar extends JComponent implements MouseInputListener, Key
 
   /** Rollover titles for each button. */
   static final String title[] = {
-    "Verify", "Stop", "New", "Open", "Save", "Upload", "Serial Monitor"
+    "Verify", "Stop", "New", "Open", "Save", "Retrieve Source", "Upload", "Serial Monitor"
   };
 
   /** Titles for each button when the shift key is pressed. */ 
   static final String titleShift[] = {
-    "Verify (w/ Verbose Output)", "Stop", "New Editor Window", "Open in Another Window", "Save", "Upload (w/ Verbose Output)", "Serial Monitor"
+    "Verify (w/ Verbose Output)", "Stop", "New Editor Window", "Open in Another Window", "Save", "Retrieve Source", "Upload (w/ Verbose Output)", "Serial Monitor"
   };
 
   static final int BUTTON_COUNT  = title.length;
@@ -62,9 +62,10 @@ public class EditorToolbar extends JComponent implements MouseInputListener, Key
   static final int NEW      = 2;
   static final int OPEN     = 3;
   static final int SAVE     = 4;
-  static final int EXPORT   = 5;
+  static final int RETRIEVE = 5;
+  static final int EXPORT   = 6;
 
-  static final int SERIAL   = 6;
+  static final int SERIAL   = 7;
 
   static final int INACTIVE = 0;
   static final int ROLLOVER = 1;
@@ -109,6 +110,7 @@ public class EditorToolbar extends JComponent implements MouseInputListener, Key
     which[buttonCount++] = NEW;
     which[buttonCount++] = OPEN;
     which[buttonCount++] = SAVE;
+    which[buttonCount++] = RETRIEVE;
     which[buttonCount++] = EXPORT;
     which[buttonCount++] = SERIAL;
 
@@ -168,7 +170,7 @@ public class EditorToolbar extends JComponent implements MouseInputListener, Key
       int offsetX = 3;
       for (int i = 0; i < buttonCount; i++) {
         x1[i] = offsetX;
-        if (i == 2 || i == 6) x1[i] += BUTTON_GAP;
+        if (i == 2 || i == 7) x1[i] += BUTTON_GAP;
         x2[i] = x1[i] + BUTTON_WIDTH;
         offsetX = x2[i];
       }
@@ -334,6 +336,10 @@ public class EditorToolbar extends JComponent implements MouseInputListener, Key
 
     case SAVE:
       editor.handleSave(false);
+      break;
+      
+    case RETRIEVE:
+      editor.handleRetrieve();
       break;
 
     case EXPORT:
