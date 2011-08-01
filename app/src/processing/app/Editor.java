@@ -2374,7 +2374,7 @@ public class Editor extends JFrame implements RunnerListener {
               //edit the current gist
               file.setContent(sketch.getCurrentCode().getProgram());
               String filename = new String(sketch.getCurrentCode().getPrettyName()+".pde");
-              //remove old files
+              //remove old files (get rid of this feature if we want to save multiple projects)
               for (String key : gist.getFiles().keySet()) {
                 if(!key.equals(filename)){
                   service.updateGist(gist.setFiles(Collections.singletonMap(key, new GistFile())));
