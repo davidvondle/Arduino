@@ -2374,7 +2374,11 @@ public class Editor extends JFrame implements RunnerListener {
               //edit the current gist
               file.setContent(sketch.getCurrentCode().getProgram());
               String filename = new String(sketch.getCurrentCode().getPrettyName()+".pde");
+<<<<<<< HEAD
               //remove old files (get rid of this feature if we want to save multiple projects)
+=======
+              //remove old files
+>>>>>>> ec8b02761443c32a6bb28a17edf90a236b106422
               for (String key : gist.getFiles().keySet()) {
                 if(!key.equals(filename)){
                   service.updateGist(gist.setFiles(Collections.singletonMap(key, new GistFile())));
@@ -2383,7 +2387,10 @@ public class Editor extends JFrame implements RunnerListener {
               
               gist.setFiles(Collections.singletonMap(filename, file));
               service.updateGist(gist);
+<<<<<<< HEAD
               System.out.println(new String("You can find the source online at: " + gist.getHtmlUrl()));
+=======
+>>>>>>> ec8b02761443c32a6bb28a17edf90a236b106422
               foundMatchingGist=true;
             }
           }
@@ -2394,9 +2401,15 @@ public class Editor extends JFrame implements RunnerListener {
           file.setContent(sketch.getCurrentCode().getProgram());
           gist.setFiles(Collections.singletonMap(new String(sketch.getCurrentCode().getPrettyName()+".pde"), file));
           gist = service.createGist(gist);
+<<<<<<< HEAD
           System.out.println(new String("You can find the source online at: " + gist.getHtmlUrl()));
           
         }
+=======
+          
+        }
+        System.out.println(new String("You can find the source online at: " + gist.getHtmlUrl()));
+>>>>>>> ec8b02761443c32a6bb28a17edf90a236b106422
       }catch(IOException e){
         System.out.println(e.getMessage());
       }
