@@ -34,12 +34,18 @@ import java.awt.print.*;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.List;
 import java.util.zip.*;
 
 import javax.swing.*;
 import javax.swing.event.*;
 import javax.swing.text.*;
 import javax.swing.undo.*;
+
+import org.eclipse.egit.github.core.Gist;
+import org.eclipse.egit.github.core.GistFile;
+import org.eclipse.egit.github.core.client.GitHubClient;
+import org.eclipse.egit.github.core.service.GistService;
 
 import gnu.io.*;
 
@@ -145,6 +151,8 @@ public class Editor extends JFrame implements RunnerListener {
   Runnable stopHandler;
   Runnable exportHandler;
   Runnable exportAppHandler;
+  Runnable sendToGitHubHandler;
+  Runnable retrieveFromGitHubHandler;
 
 
   public Editor(Base ibase, String path, int[] location) {
@@ -1362,13 +1370,16 @@ public class Editor extends JFrame implements RunnerListener {
 
 
   public void setHandlers(Runnable runHandler, Runnable presentHandler,
-                          Runnable stopHandler,
-                          Runnable exportHandler, Runnable exportAppHandler) {
+                          Runnable stopHandler, Runnable exportHandler, 
+                          Runnable exportAppHandler, Runnable sendToGitHubHandler, 
+                          Runnable retrieveFromGitHubHandler) {
     this.runHandler = runHandler;
     this.presentHandler = presentHandler;
     this.stopHandler = stopHandler;
     this.exportHandler = exportHandler;
     this.exportAppHandler = exportAppHandler;
+    this.sendToGitHubHandler = sendToGitHubHandler;
+    this.retrieveFromGitHubHandler = retrieveFromGitHubHandler;
   }
 
 
@@ -1378,6 +1389,8 @@ public class Editor extends JFrame implements RunnerListener {
     stopHandler = new DefaultStopHandler();
     exportHandler = new DefaultExportHandler();
     exportAppHandler = new DefaultExportAppHandler();
+    sendToGitHubHandler = new DefaultSendToGitHubHandler();
+    retrieveFromGitHubHandler = new DefaultRetrieveFromGitHubHandler();
   }
 
 
@@ -2275,11 +2288,183 @@ public class Editor extends JFrame implements RunnerListener {
     //if (!handleExportCheckModified()) return;
     toolbar.activate(EditorToolbar.EXPORT);
     console.clear();
+    
     statusNotice("Uploading to I/O Board...");
-
     new Thread(verbose ? exportAppHandler : exportHandler).start();
   }
+  
+  // DV: this is the added code for sending to a github gist
+  
+  synchronized public void handleRetrieve() {
+    toolbar.activate(EditorToolbar.RETRIEVE);
+    console.clear();
+    
+    statusNotice("Retrieving Source");
+    new Thread(retrieveFromGitHubHandler).start();
+  }
+    
+  
+  public String findSerialNumber() {
+    if (Base.isMacOS()) {
+      String getUsbArgs[] = new String[2];
+      getUsbArgs[0]="system_profiler";
+      getUsbArgs[1]="SPUSBDataType";
+      try{
+        Process process = new ProcessBuilder(getUsbArgs).start();
+        InputStream is = process.getInputStream();
+        InputStreamReader isr = new InputStreamReader(is);
+        BufferedReader br = new BufferedReader(isr);
+        String line;
+  
+        boolean foundArduino=false;
+        boolean foundSerial=false;
+        int serialNumPosition; 
+        while ((line = br.readLine()) != null && !foundSerial) {
+          if(line.indexOf("Arduino") > 0  || line.indexOf("FT232R") > 0){
+            foundArduino=true;
+          }
+          if(foundArduino){
+            serialNumPosition = line.indexOf("Serial Number");
+            if(serialNumPosition > 0){
+              foundSerial=true; 
+             return line.substring((serialNumPosition+15));
+            }
+          }
+        }
+        if(foundSerial==false){
+          return "";
+        }
+      }
+      catch(IOException e){
+        System.out.println(e.getMessage());
+      }
+    }
+    return "";
+  }
+  
+  class DefaultSendToGitHubHandler implements Runnable {
+    public void run() {
+      String serialNumber=findSerialNumber();
+      if (!serialNumber.isEmpty()){
+        uploadToGitHub(serialNumber);
+        statusNotice("Source sent to github");
+      }else{
+        System.out.println("Could not find your board, make sure it's plugged into USB.");
+        statusNotice("");
+      }
+    }
+    
+    private void uploadToGitHub(String serialNumber) { 
+      GitHubClient client = new GitHubClient().setCredentials("arduinoboard", "1knowmysource");
+      GistService service = new GistService(client);
+      GistFile file = new GistFile();
+      Gist gist = new Gist();
+      
+      try{
+        List<Gist> gists = service.getGists("arduinoboard");
+        Boolean foundMatchingGist=false;
+        //for (Gist gist : gists) {
+        for (int i = gists.size(); --i >= 0;){  //backwards so the first one found is the oldest one
+          gist = (Gist)gists.get(i);
+          if(gist.getDescription().contains(serialNumber)){ //found the last matching gist
+            if(foundMatchingGist==true){ //if one has already been found then an extra was made in error and needs to be cleaned up
+              //delete the spurious gist
+              service.deleteGist(gist.getId());
+            }else{
+              //edit the current gist
+              file.setContent(sketch.getCurrentCode().getProgram());
+              String filename = new String(sketch.getCurrentCode().getPrettyName()+".pde");
+              //remove old files
+              for (String key : gist.getFiles().keySet()) {
+                if(!key.equals(filename)){
+                  service.updateGist(gist.setFiles(Collections.singletonMap(key, new GistFile())));
+                }
+              }
+              
+              gist.setFiles(Collections.singletonMap(filename, file));
+              service.updateGist(gist);
+              System.out.println(new String("You can find the source online at: " + gist.getHtmlUrl()));
+              foundMatchingGist=true;
+            }
+          }
+        }
+        if(foundMatchingGist==false){ //if no gist exists for the board
+          gist = new Gist().setDescription(new String("The file that is currently on an "+base.getCurrentBoard() + " with a serial number of "+serialNumber));
+          gist.setPublic(true);                  //this should be an option in the future, but keep in mind these cannot be edited
+          file.setContent(sketch.getCurrentCode().getProgram());
+          gist.setFiles(Collections.singletonMap(new String(sketch.getCurrentCode().getPrettyName()+".pde"), file));
+          gist = service.createGist(gist);
+          System.out.println(new String("You can find the source online at: " + gist.getHtmlUrl()));
+          
+        }
+      }catch(IOException e){
+        System.out.println(e.getMessage());
+      }
+    }
+  }
+  
+  class DefaultRetrieveFromGitHubHandler implements Runnable {
+    public void run() {
+      String serialNumber; 
+      try {
+        int timeout = 2000;
+        InetAddress address = InetAddress.getByName("api.github.com");
+        if (address.isReachable(timeout)){
+          serialNumber=findSerialNumber();
+          if (!serialNumber.isEmpty()){
+            retrieveFromGitHub(serialNumber);
+          }else{
+            System.out.println("Could not find your board, make sure it's plugged into USB.");
+            statusNotice("");
+          }
+        }else{
+          System.out.println("github service is unavailable, cannot retrieve source.");
+          statusNotice("");
+        }
+      } catch (Exception e) {
+        System.out.println("You are not connected to the internet, cannot retrieve source.");
+        statusNotice("");
+      }
+      toolbar.deactivate(EditorToolbar.RETRIEVE);
+    }
+    
+    private void retrieveFromGitHub(String serialNumber) { 
+      GitHubClient client = new GitHubClient().setCredentials("arduinoboard", "1knowmysource");
+      GistService service = new GistService(client);
+      GistFile file = new GistFile();
+      Gist gist = new Gist();
+      
+      try{
+        List<Gist> gists = service.getGists("arduinoboard");
+        Boolean foundMatchingGist=false;
+        //for (Gist gist : gists) {
+        for (int i = gists.size(); --i >= 0;){  //backwards so the first one found is the oldest one
+          gist = (Gist)gists.get(i);
+          if(gist.getDescription().contains(serialNumber)){ //found the last matching gist
+            if(foundMatchingGist==true){ //if one has already been found then an extra was made in error and needs to be cleaned up
+              //delete the spurious gist
+              service.deleteGist(gist.getId());
+            }else{
+              statusNotice("Found Source");
+              gist=service.getGist(gist.getId());//get it again because the other capture only gets the meta-data
+              setText(gist.getFiles().get(gist.getFiles().keySet().iterator().next()).getContent()); //gets the first sketch, puts it in the window
+              foundMatchingGist=true;
+            }
+          }
+        }
+        if(foundMatchingGist==false){ //if no gist exists for the board
+          System.out.println("No source was found for this board.");
+          statusNotice("");
+        }
+      }catch(IOException e){
+        System.out.println(e.getMessage());
+        statusNotice("");
+      }
+    }
+  }
 
+  
+  
   // DAM: in Arduino, this is upload
   class DefaultExportHandler implements Runnable {
     public void run() {
@@ -2292,7 +2477,23 @@ public class Editor extends JFrame implements RunnerListener {
           
         boolean success = sketch.exportApplet(false);
         if (success) {
-          statusNotice("Done uploading.");
+          //this is where the github code starts
+          try {
+            int timeout = 2000;
+            InetAddress address = InetAddress.getByName("api.github.com");
+            if (address.isReachable(timeout)){
+              statusNotice("Done uploading, sending source to github...");
+              new Thread(sendToGitHubHandler).start();
+            }else{
+              statusNotice("Done uploading.");
+              System.out.println("github service is unavailable, source will not be sent.");
+              System.out.println("Make sure to save locally!");
+            }
+          } catch (Exception e) {
+            statusNotice("Done uploading.");
+            System.out.println("You are not connected to the internet, source will not be sent.");
+            System.out.println("Make sure to save locally!");
+          }
         } else {
           // error message will already be visible
         }

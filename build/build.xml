@@ -28,6 +28,12 @@
     <include name="app/lib/RXTXcomm.jar" />
     <include name="app/lib/ant.jar" />
     <include name="app/lib/ant-launcher.jar" />
+  	<include name="app/lib/gson.jar" />
+    <include name="app/lib/httpclient.jar" />
+    <include name="app/lib/httpcore.jar" />
+  	<include name="app/lib/commons-codec.jar" />
+  	<include name="app/lib/commons-logging.jar" />
+  	<include name="app/lib/egit.jar" />
   </fileset>
 
   <target name="build" description="Build Arduino.">
